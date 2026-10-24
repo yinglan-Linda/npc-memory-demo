@@ -17,7 +17,7 @@ config = Config()
 logger = logging.getLogger(__name__)
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", config.get("ollama.base_url")).rstrip("/")
 
-def fallback_to_ollama(prompt, *, stage="generation", run_id=None):
+def fallback_to_ollama(messages, *, stage="generation", run_id=None):
     """Call the configured local Ollama model."""
     local_model = config.get("ollama.model", "qwen2.5:3b")
     num_predict = config.get("ollama.num_predict", 512)
@@ -25,15 +25,20 @@ def fallback_to_ollama(prompt, *, stage="generation", run_id=None):
     
     payload = {
         "model": local_model,
-        "prompt": prompt,
+        "messages": messages,
         "stream": False,
         "options": {"num_predict": num_predict}
     }
     try:
-        response = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload, timeout=timeout)
+        response = requests.post(
+            f"{OLLAMA_BASE_URL}/api/chat",
+            json=payload,
+            timeout=timeout,
+        )
         if response.status_code == 200:
             result = response.json()
-            content = result.get("response") if isinstance(result, dict) else None
+            message = result.get("message") if isinstance(result, dict) else None
+            content = message.get("content") if isinstance(message, dict) else None
             if not isinstance(content, str) or not content.strip():
                 raise ValueError("Missing Ollama response text")
             logger.info("Ollama success: model=%s", local_model)

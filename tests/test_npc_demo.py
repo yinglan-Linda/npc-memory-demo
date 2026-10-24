@@ -19,10 +19,14 @@ def test_persist_reload_latest_turn_and_player_isolation(tmp_path):
     first.chat("我叫小雨，不喝酒，明天去旧灯塔。")
     restarted = NPCSession(CHARACTER, "alice", tmp_path, responder=responder)
     restarted.chat("我刚才说要去哪？")
-    payload = json.loads(prompts[-1].split("\n", 1)[1])
-    history = json.loads(payload["conversation_history"])
-    assert history[-1]["user"] == "我叫小雨，不喝酒，明天去旧灯塔。"
-    assert "外冷内热" in payload["character_document"]
+    messages = prompts[-1]
+    assert [item["role"] for item in messages] == [
+        "system", "user", "assistant", "user"
+    ]
+    assert "外冷内热" in messages[0]["content"]
+    assert messages[1]["content"] == "我叫小雨，不喝酒，明天去旧灯塔。"
+    assert messages[2]["content"] == "姜茶给你留着。"
+    assert messages[3]["content"] == "我刚才说要去哪？"
     assert len(json.loads(first.memory.memory_file.read_text(encoding="utf-8"))) == 2
     other = NPCSession(CHARACTER, "bob", tmp_path, responder=responder)
     assert other.memory.conversations == []
@@ -65,9 +69,13 @@ def test_context_window_keeps_last_six_turns(tmp_path):
     session = NPCSession(CHARACTER, memory_dir=tmp_path, responder=responder)
     for i in range(8):
         session.chat(f"消息{i}")
-    payload = json.loads(prompts[-1].split("\n", 1)[1])
-    history = json.loads(payload["conversation_history"])
-    assert len(history) == 6
-    assert history[0]["user"] == "消息1"
-    assert history[-1]["user"] == "消息6"
+    messages = prompts[-1]
+    history_messages = messages[1:-1]
+    assert len(history_messages) == 12  # 6 轮，每轮两条消息
+    assert [item["role"] for item in history_messages] == [
+        "user", "assistant"
+    ] * 6
+    assert history_messages[0]["content"] == "消息1"
+    assert history_messages[-2]["content"] == "消息6"
+    assert messages[-1] == {"role": "user", "content": "消息7"}
     assert len(session.memory.conversations) == 8

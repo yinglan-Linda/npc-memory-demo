@@ -31,8 +31,9 @@ class NPCSession:
         if len(message) > 4000:
             raise ValueError("单条消息最多支持 4000 字符")
         # Always include the immediately preceding turn, even without keyword overlap.
-        context = json.dumps(self.memory.get_recent_history(6), ensure_ascii=False)
-        result = self.respond(self.agent.build_prompt(message, context))
+        history = self.memory.get_recent_history(6)
+        messages = self.agent.build_messages(message, history)
+        result = self.respond(messages)
         content = result.get("content")
         if result.get("source") == "error" or not isinstance(content, str) or not content.strip():
             raise RuntimeError(result.get("error") or "模型没有返回有效文本，本轮未保存")
